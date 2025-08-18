@@ -1,0 +1,232 @@
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Alert, Share, Platform } from 'react-native';
+import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
+import AesCrypto from 'react-native-aes-crypto';
+import FileViewer from 'react-native-file-viewer';
+
+// ===== STATIC TEST KEY & IV (TEST ONLY) =====
+const STATIC_KEY = '12345678901234567890123456789012'; // 32 chars = 256-bit key
+const STATIC_IV  = 'abcdef9876543210';                 // 16 chars = 128-bit IV
+
+// Determine a common save path (Downloads for Android, DocumentDirectoryPath for iOS)
+const BASE_SAVE_PATH = Platform.OS === 'android'
+  ? RNFS.DownloadDirectoryPath
+  : RNFS.DocumentDirectoryPath;
+
+// ===== LOG HEADER =====
+const logHeader = (title) => console.log(`\n==================== ${title} ====================`);
+
+// ===== ENCRYPT =====
+const encryptFile = async (filePath, key, iv) => {
+  logHeader('ENCRYPT START');
+  console.log('[ENCRYPT] Source URI:', filePath);
+  try {
+    const fileData = await RNFS.readFile(filePath, 'base64');
+    console.log('[ENCRYPT] Read OK. Base64 length:', fileData.length);
+
+    const encryptedBase64 = await AesCrypto.encrypt(fileData, key, iv, 'aes-256-gcm');
+    console.log('[ENCRYPT] AES-256-GCM OK. Ciphertext length:', encryptedBase64.length);
+
+    return encryptedBase64;
+  } catch (error) {
+    console.error('[ENCRYPT] Error:', error);
+    throw error;
+  } finally {
+    logHeader('ENCRYPT END');
+  }
+};
+
+const saveEncryptedFile = async (ciphertext, originalName) => {
+  const encryptedFilePath = `${BASE_SAVE_PATH}/${originalName}.enc`;
+  console.log('[SAVE-ENC] Target path:', encryptedFilePath);
+  try {
+    await RNFS.writeFile(encryptedFilePath, ciphertext, 'base64');
+    console.log('[SAVE-ENC] Write OK.');
+    return encryptedFilePath;
+  } catch (error) {
+    console.error('[SAVE-ENC] Error:', error);
+    throw error;
+  }
+};
+
+// ===== DECRYPT =====
+const decryptFile = async (encryptedFilePath, key, iv) => {
+  logHeader('DECRYPT START');
+  console.log('[DECRYPT] Reading encrypted file:', encryptedFilePath);
+  try {
+    const encryptedData = await RNFS.readFile(encryptedFilePath, 'base64');
+    console.log('[DECRYPT] Read OK. Base64 length:', encryptedData.length);
+
+    const decryptedBase64 = await AesCrypto.decrypt(encryptedData, key, iv, 'aes-256-gcm');
+    console.log('[DECRYPT] AES-256-GCM OK. Decrypted length:', decryptedBase64.length);
+
+    return decryptedBase64;
+  } catch (error) {
+    console.error('[DECRYPT] Error:', error);
+    throw error;
+  } finally {
+    logHeader('DECRYPT END');
+  }
+};
+
+const saveDecryptedFile = async (decryptedBase64, originalName) => {
+  const outputPath = `${BASE_SAVE_PATH}/${originalName}`;
+  console.log('[SAVE-DEC] Target path:', outputPath);
+  try {
+    await RNFS.writeFile(outputPath, decryptedBase64, 'base64');
+    console.log('[SAVE-DEC] Write OK.');
+    return outputPath;
+  } catch (error) {
+    console.error('[SAVE-DEC] Error:', error);
+    throw error;
+  }
+};
+
+// ===== OPEN FILE =====
+const openFileWithViewer = async (path) => {
+  console.log('[VIEW] Opening file with system viewer:', path);
+  try {
+    await FileViewer.open(path, {
+      showOpenWithDialog: true,
+      showAppsSuggestions: true,
+    });
+    console.log('[VIEW] File opened successfully.');
+  } catch (error) {
+    console.error('[VIEW] Failed to open file:', error);
+    Alert.alert('Open failed', 'No app found to open this file or access denied.');
+  }
+};
+
+// ===== SHARE FILE =====
+const shareFile = async (path, originalName) => {
+  console.log('[SHARE] Preparing share for:', path);
+  try {
+    const message = `Sharing file: ${originalName}`;
+    await Share.share({
+      title: originalName,
+      message: `${message}\n\nPath: ${path}`,
+      url: Platform.OS === 'ios' ? path : undefined,
+    });
+    console.log('[SHARE] Share dialog shown.');
+  } catch (error) {
+    console.error('[SHARE] Error:', error);
+  }
+};
+
+// ===== MAIN COMPONENT =====
+const HomeScreen = () => {
+  const [lastEncryptedPath, setLastEncryptedPath] = React.useState(null);
+  const [lastEncryptedName, setLastEncryptedName] = React.useState(null);
+  const [lastDecryptedPath, setLastDecryptedPath] = React.useState(null);
+  const [lastOriginalName, setLastOriginalName] = React.useState(null);
+
+  // Encrypt flow
+  const handleEncrypt = async () => {
+    logHeader('HANDLE ENCRYPT');
+    try {
+      const res = await DocumentPicker.pick({ type: [DocumentPicker.types.allFiles] });
+      const fileName = res[0]?.name ?? 'unknown';
+      const fileUri  = res[0]?.uri;
+      console.log('[PICKER] Selected name:', fileName);
+      console.log('[PICKER] Selected URI :', fileUri);
+
+      const ciphertext = await encryptFile(fileUri, STATIC_KEY, STATIC_IV);
+      const savedPath  = await saveEncryptedFile(ciphertext, fileName);
+
+      setLastEncryptedPath(savedPath);
+      setLastEncryptedName(`${fileName}.enc`);
+      setLastOriginalName(fileName);
+      setLastDecryptedPath(null);
+
+      Alert.alert('Encryption Complete', `Encrypted file saved at:\n${savedPath}`);
+    } catch (err) {
+      if (DocumentPicker.isCancel(err)) {
+        console.log('[PICKER] User cancelled.');
+      } else {
+        console.error('[HANDLE ENCRYPT] Error:', err);
+        Alert.alert('Error', 'Failed to encrypt the file.');
+      }
+    }
+    logHeader('HANDLE ENCRYPT END');
+  };
+
+  // Decrypt flow
+  const handleDecryptAndOpen = async () => {
+    logHeader('HANDLE DECRYPT');
+    if (!lastEncryptedPath || !lastOriginalName) {
+      console.warn('[HANDLE DECRYPT] Nothing to decrypt. Encrypt first.');
+      Alert.alert('No file', 'Please encrypt a file first.');
+      return;
+    }
+
+    try {
+      const decryptedBase64 = await decryptFile(lastEncryptedPath, STATIC_KEY, STATIC_IV);
+      const outputPath      = await saveDecryptedFile(decryptedBase64, lastOriginalName);
+
+      setLastDecryptedPath(outputPath);
+
+      Alert.alert('Decryption Complete', `Restored file at:\n${outputPath}`);
+
+      await openFileWithViewer(outputPath);
+    } catch (error) {
+      console.error('[HANDLE DECRYPT] Error:', error);
+      Alert.alert('Error', 'Failed to decrypt/open the file.');
+    }
+    logHeader('HANDLE DECRYPT END');
+  };
+
+  // Share file
+  const handleShareLast = async () => {
+    logHeader('HANDLE SHARE');
+    try {
+      if (lastDecryptedPath) {
+        await shareFile(lastDecryptedPath, lastOriginalName || 'decrypted_file');
+        return;
+      }
+      if (lastEncryptedPath) {
+        await shareFile(lastEncryptedPath, lastEncryptedName || 'encrypted_file.enc');
+        return;
+      }
+      Alert.alert('Nothing to share', 'Please encrypt or decrypt a file first.');
+    } catch (error) {
+      console.error('[HANDLE SHARE] Error:', error);
+    }
+    logHeader('HANDLE SHARE END');
+  };
+
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity style={styles.button} onPress={handleEncrypt}>
+        <Text style={styles.btnText}>Encrypt File</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={handleDecryptAndOpen}>
+        <Text style={styles.btnText}>Decrypt & Open</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, styles.buttonAlt]} onPress={handleShareLast}>
+        <Text style={styles.btnText}>Share Last File</Text>
+      </TouchableOpacity>
+
+      <View style={{ marginTop: 16 }}>
+        <Text style={styles.hint}>
+          Save dir: {BASE_SAVE_PATH}
+        </Text>
+        {lastEncryptedPath ? <Text style={styles.hint}>Enc: {lastEncryptedPath}</Text> : null}
+        {lastDecryptedPath ? <Text style={styles.hint}>Dec: {lastDecryptedPath}</Text> : null}
+      </View>
+    </View>
+  );
+};
+
+export default HomeScreen;
+
+// ===== STYLES =====
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222', padding: 16 },
+  button: { backgroundColor: '#4CAF50', padding: 15, borderRadius: 8, marginVertical: 10, minWidth: 220, alignItems: 'center' },
+  buttonAlt: { backgroundColor: '#007AFF' },
+  btnText: { color: '#fff', fontSize: 16 },
+  hint: { color: '#bbb', fontSize: 12, marginTop: 4, maxWidth: 320 },
+});
