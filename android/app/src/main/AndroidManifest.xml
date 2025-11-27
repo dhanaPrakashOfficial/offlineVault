@@ -1,20 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- network (only once) -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Storage access: keep READ_EXTERNAL_STORAGE for older Android versions.
+         For Android 13+ you may request READ_MEDIA_* at runtime when listing images/videos. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- WRITE_EXTERNAL_STORAGE is deprecated on newer Androids; avoid unless absolutely needed -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <!-- Optional: for Camera capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Optional: media location on some devices -->
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Location / network perms kept only if your app requires them -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" android:requestLegacyExternalStorage="true" android:maxSdkVersion="29"/>
 
     <application
       android:name=".MainApplication"

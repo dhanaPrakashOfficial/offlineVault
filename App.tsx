@@ -28,7 +28,7 @@
 //       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 //       const fileName = `encrypted_${originalName}_${timestamp}.enc`;
 //       const downloadsPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
-      
+
 //       await RNFS.writeFile(downloadsPath, encryptedData, 'utf8');
 //       return downloadsPath;
 //     } catch (error) {
@@ -53,11 +53,11 @@
 //         // Read file
 //         const fileData = await RNFS.readFile(res[0].uri, 'base64');
 //         const originalName = res[0].name || 'file';
-        
+
 //         // Generate crypto materials
 //         const key = await AesCrypto.randomKey(32);
 //         const iv = await AesCrypto.randomKey(16);
-        
+
 //         // Encrypt
 //         const encryptedData = await AesCrypto.encrypt(
 //           fileData,
@@ -112,18 +112,31 @@
 
 // export default App;
 
-
 import React from 'react';
-import { SafeAreaView, Button, Text, Alert, StyleSheet, PermissionsAndroid } from 'react-native';
+import {
+  SafeAreaView,
+  Button,
+  Text,
+  Alert,
+  StyleSheet,
+  PermissionsAndroid,
+} from 'react-native';
 
 import HomeScreen from './src/screens/homeScreen/Home';
+import PinScreen from './src/screens/pin/Pin';
+import VaultScreen from './src/screens/vault/vault';
+import SimpleEncryptionScreen from './src/screens/simpleEncryption/SimpleEncryptionScreen';
+import AesGcmScreen from './src/screens/simpleEncryption/aesGcmScreen';
+
 
 const App = () => {
- 
-
   return (
     <SafeAreaView style={styles.container}>
-     <HomeScreen />
+      {/* <PinScreen /> */}
+      {/* <HomeScreen /> */}
+      {/* <VaultScreen /> */}
+      {/* <SimpleEncryptionScreen /> */}
+      <AesGcmScreen />
     </SafeAreaView>
   );
 };
@@ -131,9 +144,7 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-   
   },
-
 });
 
 export default App;
